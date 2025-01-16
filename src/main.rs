@@ -58,6 +58,9 @@ pub struct Opt {
     #[structopt(short, long)]
     /// Don't ask for confirmation before deleting
     disable_delete_confirmation: bool,
+    #[structopt(short, long)]
+    /// The folder/file to skip
+    skip_directory: Option<PathBuf>,
 }
 
 fn main() {
@@ -91,6 +94,7 @@ fn try_main() -> Result<(), failure::Error> {
                 folder,
                 opts.apparent_size,
                 opts.disable_delete_confirmation,
+                opts.skip_directory,
             );
         }
         Err(_) => failure::bail!("Failed to get stdout: are you trying to pipe 'diskonaut'?"),
@@ -105,6 +109,7 @@ pub fn start<B>(
     path: PathBuf,
     show_apparent_size: bool,
     disable_delete_confirmation: bool,
+    skip_directory: Option<PathBuf>,
 ) where
     B: Backend + Send + 'static,
 {
@@ -201,6 +206,17 @@ pub fn start<B>(
                             Ok(entry) => match entry.metadata() {
                                 Ok(file_metadata) => {
                                     let entry_path = entry.path();
+                                    if skip_directory.is_some() {
+                                        let sd = skip_directory
+                                            .as_ref()
+                                            .and_then(|p| Some(p.display().to_string()))
+                                            .unwrap_or_else(|| "None".to_string());
+
+                                        let ep = entry_path.to_path_buf().display().to_string();
+                                        if ep.contains(&sd) {
+                                            continue;
+                                        }
+                                    }
                                     instruction_sender.send(Instruction::AddEntryToBaseFolder((
                                         file_metadata,
                                         entry_path,
